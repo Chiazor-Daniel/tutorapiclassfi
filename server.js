@@ -62,7 +62,7 @@ const responseSchema = {
     required: ["lesson"]
 };
 
-const genAI = new GoogleGenerativeAI(process.env.API_KEY || '');
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 app.post('/api/lesson', async (req, res) => {
     const { prompt, files } = req.body;
