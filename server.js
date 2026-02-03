@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const morgan = require("morgan");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 require("dotenv").config();
 const { UniversalEdgeTTS } = require("edge-tts-universal");
@@ -8,8 +9,27 @@ const gTTS = require("gtts");
 const app = express();
 const port = process.env.PORT || 4000;
 
+// Log HTTP requests
+app.use(morgan("dev"));
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
+
+// Log responses
+app.use((req, res, next) => {
+  const originalSend = res.send;
+  res.send = function (body) {
+    console.log(
+      `[Response] ${req.method} ${req.path} - Status: ${res.statusCode}`,
+    );
+    if (body && typeof body === "string") {
+      console.log(
+        `[Response Body] ${body.substring(0, 200)}${body.length > 200 ? "..." : ""}`,
+      );
+    }
+    originalSend.call(this, body);
+  };
+  next();
+});
 
 const SYSTEM_INSTRUCTION = `
 You are Easy PrepAI, an elite STEM tutor. Your goal is to create engaging, step-by-step lessons across all STEM subjects with proper visual representations.
@@ -107,6 +127,10 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 app.post("/api/lesson", async (req, res) => {
   const { prompt, files } = req.body;
+  console.log(
+    `[Lesson Request] Prompt: "${prompt?.substring(0, 100)}${prompt?.length > 100 ? "..." : ""}"`,
+  );
+  console.log(`[Lesson Request] Files: ${files?.length || 0} file(s)`);
 
   try {
     const model = genAI.getGenerativeModel({
@@ -137,6 +161,9 @@ app.post("/api/lesson", async (req, res) => {
 
     const response = await result.response;
     const text = response.text();
+    console.log(
+      `[Lesson Response] Generated content: ${text.substring(0, 200)}...`,
+    );
     res.json(JSON.parse(text));
   } catch (error) {
     console.error("Backend Error:", error);
