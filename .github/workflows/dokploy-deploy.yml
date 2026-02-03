@@ -3,7 +3,7 @@ name: Trigger Dokploy Deployment
 on:
   push:
     branches:
-      - main  # Change this to your default branch if it's not 'main'
+      - "**" # Trigger on all branches
 
 jobs:
   deploy:
