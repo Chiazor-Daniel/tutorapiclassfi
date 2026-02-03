@@ -1,17 +1,14 @@
-name: Trigger Dokploy Deployment
+name: Deploy to Dokploy
 
 on:
   push:
     branches:
-      - "**" # Trigger on all branches
+      - main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Dokploy Deployment
+      - name: Deploy to Dokploy
         run: |
-          curl -X POST \
-            -H "Content-Type: application/json" \
-            -d '{}' \
-            https://dokploy.class-fi.com/api/deploy/isEnrwfQhduydOcZfac__
+          curl -f -S -m 30 -X GET "https://dokploy.class-fi.com/api/deploy/cpwD7vjV56nsrs4EWFLZO"
