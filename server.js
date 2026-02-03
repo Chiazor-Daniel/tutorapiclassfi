@@ -9,7 +9,6 @@ const gTTS = require("gtts");
 const app = express();
 const port = process.env.PORT || 4000;
 
-// Log HTTP requests
 app.use(morgan("dev"));
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
