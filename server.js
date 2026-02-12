@@ -65,6 +65,59 @@ const responseSchema = {
   required: ["lesson"],
 };
 
+const EXPLAIN_CONCEPT_SYSTEM_INSTRUCTION = `
+You are an expert STEM tutor specializing in making complex concepts easy to understand.
+Your goal is to provide a comprehensive explanation of a given subtopic within a subject and topic.
+
+FORMATTING RULES:
+1. Use Markdown for formatting: **bold** for emphasis, *italic* for secondary emphasis.
+2. Use LaTeX for ALL mathematical symbols, equations, and expressions.
+   - Use $ for inline math (e.g., $x^2 + y^2 = r^2$).
+   - Use $$ for displayed math (e.g., $$E = mc^2$$).
+   - Use proper LaTeX syntax for fractions (\\frac{a}{b}), roots (\\sqrt{x}), subscripts (x_1), etc.
+3. Steps should be logical, clear, and build upon each other.
+4. For calculation-based topics (Math, Physics, Chemistry):
+   - Include the problem statement or core concept.
+   - Show step-by-step calculations with LaTeX.
+   - Define variables clearly.
+5. For theory-based topics (Biology, Concepts):
+   - Break down into 4-6 logical steps.
+   - Explain the mechanism, components, and relationships.
+   - Conclude with significance or applications.
+
+Output as JSON ONLY.
+`;
+
+const EXPLAIN_CONCEPT_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    explanation: {
+      type: "STRING",
+      description: "Main explanation text (markdown supported)",
+    },
+    steps: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          id: {
+            type: "STRING",
+            description: "Unique identifier for each step (e.g., step-1, step-2)",
+          },
+          text: {
+            type: "STRING",
+            description: "Step content (supports markdown & LaTeX)",
+          },
+        },
+        required: ["id", "text"],
+      },
+    },
+  },
+  required: ["explanation", "steps"],
+};
+
+const explanationCache = new Map();
+
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 app.post("/api/lesson", async (req, res) => {
@@ -159,6 +212,65 @@ app.get("/api/tts", async (req, res) => {
     } catch (err) {
       res.status(500).send("TTS failed");
     }
+  }
+});
+
+app.post("/api/gamification/explain-concept", async (req, res) => {
+  const { subject, topic, subtopic, context = "simulation" } = req.body;
+
+  if (!subject || !topic || !subtopic) {
+    return res.status(400).json({
+      error: "Invalid request",
+      message: "subject, topic, and subtopic are required fields.",
+    });
+  }
+
+  const cacheKey = `${subject}:${topic}:${subtopic}:${context}`.toLowerCase();
+
+  if (explanationCache.has(cacheKey)) {
+    console.log(`[Cache Hit] ${cacheKey}`);
+    return res.json(explanationCache.get(cacheKey));
+  }
+
+  try {
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      systemInstruction: EXPLAIN_CONCEPT_SYSTEM_INSTRUCTION,
+    });
+
+    const prompt = `
+      Subject: ${subject}
+      Topic: ${topic}
+      Subtopic: ${subtopic}
+      Context: ${context}
+
+      Please provide a detailed explanation with step-by-step breakdown.
+      If it's a science or math topic, ensure mathematical rigor and use LaTeX.
+      If it's a theoretical concept, break down the process or mechanism clearly.
+    `;
+
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: EXPLAIN_CONCEPT_SCHEMA,
+      },
+    });
+
+    const response = await result.response;
+    const text = response.text();
+    const parsedData = JSON.parse(text);
+
+    // Store in cache
+    explanationCache.set(cacheKey, parsedData);
+
+    res.json(parsedData);
+  } catch (error) {
+    console.error("Concept Explanation Error:", error);
+    res.status(500).json({
+      error: "AI generation failed",
+      message: error.message,
+    });
   }
 });
 
